@@ -8,6 +8,8 @@
 #include <string>
 #include <unordered_set>
 
+namespace cppgrad {
+
 class Value;
 using Valueptr = std::shared_ptr<Value>;
 
@@ -53,7 +55,7 @@ class Value : public std::enable_shared_from_this<Value> {
             };
 
             build_topo (shared_from_this());
-            // Set the gradien of o/p node to 1.0
+            // Set the gradient of o/p node to 1.0
             this->grad = 1.0;
             // apply the chain rule in reverse topological order
             for (auto it = topo.rbegin(); it != topo.rend(); ++it) {
@@ -77,6 +79,7 @@ inline Valueptr operator+(const Valueptr& self,const Valueptr& other) {
 // If a value which is not a shared pointer is added to a Valueptr, we need to overload the + operator for double as well
 inline Valueptr operator+(const Valueptr& self,double other) {return self + Value::create(other);}
 inline Valueptr operator+(double other,const Valueptr& self) {return self + Value::create(other);}
+
 // * operator overload
 inline Valueptr operator*(const Valueptr& self,const Valueptr& other) {
     auto out = Value::create(self->data * other->data, {self, other}, "*");
@@ -88,3 +91,25 @@ inline Valueptr operator*(const Valueptr& self,const Valueptr& other) {
 }
 inline Valueptr operator*(const Valueptr& self,double other) {return self * Value::create(other);}
 inline Valueptr operator*(double other,const Valueptr& self) {return self * Value::create(other);}
+
+// pow operator overload
+inline Valueptr pow(const Valueptr& self,double exponent) {
+    auto out = Value::create(std::pow(self->data, exponent), {self}, "^" + std::to_string(exponent));
+    out->_backward = [self, exponent, out] () {
+        self->grad += exponent * std::pow(self->data, exponent - 1) * out->grad;
+    };
+    return out;
+}
+
+// Negation operator overload
+inline Valueptr operator-(const Valueptr& self) { return self * -1.0; }
+inline Valueptr operator-(const Valueptr& self, const Valueptr& other) { return self + (-other); }
+inline Valueptr operator-(const Valueptr& self, double other) { return self - Value::create(other); }
+inline Valueptr operator-(double self, const Valueptr& other) { return Value::create(self) - other; }
+
+// Division operator overload
+
+inline Valueptr operator/(const Valueptr& self, const Valueptr& other) { return self * pow(other, -1.0); }
+inline Valueptr operator/(const Valueptr& self, double other) { return self / Value::create(other); }
+inline Valueptr operator/(double self, const Valueptr& other) { return Value::create(self) / other; }
+}
