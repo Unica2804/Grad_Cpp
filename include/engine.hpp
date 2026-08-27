@@ -112,4 +112,41 @@ inline Valueptr operator-(double self, const Valueptr& other) { return Value::cr
 inline Valueptr operator/(const Valueptr& self, const Valueptr& other) { return self * pow(other, -1.0); }
 inline Valueptr operator/(const Valueptr& self, double other) { return self / Value::create(other); }
 inline Valueptr operator/(double self, const Valueptr& other) { return Value::create(self) / other; }
+
+// exponential function overload
+inline Valueptr exp(const Valueptr& self) {
+    auto out = Value::create(std::exp(self->data), {self}, "exp");
+    out->_backward = [self, out] () {
+        self->grad += out->data * out->grad;
+    };
+    return out;
+}
+
+// tanh function overload
+inline Valueptr tanh(const Valueptr& self) {
+    auto out = Value::create(std::tanh(self->data), {self}, "tanh");
+    out->_backward = [self, out] () {
+        self->grad += (1 - out->data * out->data) * out->grad;
+    };
+    return out;
+}
+
+// relu function overload
+inline Valueptr relu(const Valueptr& self) {
+    auto out = Value::create(self->data > 0 ? self->data : 0.0, {self}, "ReLU");
+    out->_backward = [self, out] () {
+        self->grad += (self->data > 0 ? 1.0 : 0.0) * out->grad;
+    };
+    return out;
+}
+
+// sigmoid function overload
+inline Valueptr sigmoid(const Valueptr& self) {
+    auto out = Value::create(1.0 / (1.0 + std::exp(-self->data)), {self}, "sigmoid");
+    out->_backward = [self, out] () {
+        self->grad += out->data * (1 - out->data) * out->grad;
+    };
+    return out;
+}
+
 }
