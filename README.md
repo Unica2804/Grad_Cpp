@@ -125,6 +125,80 @@ output->backward();
 // output = 11, and x->grad = 3 * 2^2 + 2 = 14
 ```
 
+## Build and train an MLP
+
+The `nn.hpp` header provides `Neuron`, `layer`, and `MLP` modules. Each module
+exposes its learnable `Value` nodes through `parameters()`, so a training loop
+can zero gradients, backpropagate a loss, and update the parameters with
+gradient descent:
+
+```cpp
+#include "include/nn.hpp"
+
+#include <iostream>
+#include <vector>
+
+using namespace cppgrad;
+
+int main() {
+	// Two inputs, two hidden layers of four neurons, and one output.
+	MLP model(2, {4, 4, 1});
+
+	std::vector<std::vector<double>> inputs = {
+		{2.0, 3.0},
+		{3.0, -1.0},
+		{0.5, 1.0},
+		{1.0, 1.0}
+	};
+	std::vector<double> targets = {1.0, -1.0, -1.0, 1.0};
+
+	const double learning_rate = 0.05;
+	for (int epoch = 0; epoch < 200; ++epoch) {
+		Valueptr total_loss = Value::create(0.0);
+
+		for (size_t i = 0; i < inputs.size(); ++i) {
+			std::vector<Valueptr> x = {
+				Value::create(inputs[i][0]),
+				Value::create(inputs[i][1])
+			};
+			Valueptr target = Value::create(targets[i]);
+			Valueptr prediction = model.forward(x)[0];
+
+			// Mean squared error without the mean for this small example.
+			Valueptr error = prediction - target;
+			total_loss = total_loss + (error * error);
+		}
+
+		model.zero_grad();
+		total_loss->backward();
+
+		for (const auto& parameter : model.parameters()) {
+			parameter->data -= learning_rate * parameter->grad;
+		}
+
+		if (epoch % 50 == 0) {
+			std::cout << "Epoch " << epoch
+					  << " | Loss: " << total_loss->data << '\n';
+		}
+	}
+
+	for (size_t i = 0; i < inputs.size(); ++i) {
+		std::vector<Valueptr> x = {
+			Value::create(inputs[i][0]),
+			Value::create(inputs[i][1])
+		};
+		std::cout << "Target: " << targets[i]
+				  << " | Prediction: " << model.forward(x)[0]->data << '\n';
+	}
+}
+```
+
+The final layer is linear; hidden layers use `tanh`. To use a different
+architecture, pass the input width and output width of each layer in order,
+for example `MLP model(3, {8, 8, 2});`. The example performs one full-batch
+update per epoch. For mini-batch training, build and backpropagate a loss for
+one batch before updating the parameters.
+
 ## Build and run
 
 The project is header-only. A compiler with C++11 support is sufficient:
@@ -138,8 +212,9 @@ g++ -std=c++11 -I. main.cpp -o cppgrad
 
 The engine currently supports scalar `double` values and the operators `+`,
 `-`, `*`, `/`, unary negation, and `pow(Value, exponent)`. It does not yet
-provide tensors, common functions such as `exp` or `log`, gradient reset
-helpers, or an optimizer.
+provide tensors, common functions such as `log`, or an optimizer. The neural
+network helpers provide scalar `Neuron`, `layer`, and `MLP` modules with
+`tanh` hidden activations, plus `zero_grad()` for resetting module parameters.
 
 ## Acknowledgements
 
